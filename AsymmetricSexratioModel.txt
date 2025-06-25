@@ -1,0 +1,121 @@
+# JAGS model script for sex rate change 
+#Moder data
+# N_S= number of studies (modern datasets)
+# N_tot =total number of observations for modern data 
+## cows= number of surviving animals in each dataset in each age group
+## Sex is indicator for male 
+## midAge is the midpoint of the age interval for modelrn cows 
+## subjet is the herd ID 
+##N_age is the population at risk in each age class
+###################################################
+# Archeological Data
+# oldAge is the mid-point of the age classes for ancient herd 
+# N_old is the length of oldAge
+# ancient_herds is a matrix KxN_old, for K herds. Each row contains the death counts for each herd 
+# total_count is a K dimensional vector containing the totla number of individuals for each ancient herd 
+
+model{
+#######
+######### Model for modern data: Poisson regression with a random intercept to account for different herds 
+###### and offset to account for different sample size 
+
+	for (i in 1:N_tot) {
+		cows[i] ~ dpois(mu[i])
+		log(mu[i])<- beta *midAge[i] + beta_S*Sex[i] +log(N_Age[i])+eta[subject[i]] +beta_I	*Sex[i]*midAge[i]
+		
+	}
+	for( i in 1:N_fit){
+		log.fit_M[i]<-   beta *midAge[i]+ beta_S + beta_I*agepred[i] +eta[predstudy[i]] +log(N_Age[i])
+		log.fit_F[i]<-   beta *agepred[i] +eta[predstudy[i]] +log(N_Age[i])
+
+		fit_M[i]<- exp(log.fit_M[i])
+		fit_F[i]<- exp(log.fit_F[i])
+
+		ratio_r[i]<- fit_M[i]/fit_F[i] # overall sex ratio
+  	}
+
+
+
+	for(i in 1:N_old){
+		### evaluate sex ratio for archeological data 	
+		rbar[i]<- exp( beta_S + beta_I*oldAge[i]) 
+
+	}	
+	
+	########## Model for Ancient Herds
+
+	for(j in 1 :K){
+		ancient_herds[j,1:N_old]~dmulti(theta[j,1:N_old],total_count[j])	
+		
+	}
+
+	### Prior for ancient data
+	for(j in 1 :K){
+		theta[j, 1:N_old] ~ ddirch(gamma[1:N_old])
+	
+	}
+	
+	
+	for(i in 1:N_old){
+		gamma[i] ~dnorm(0,0.001)T(0,)
+		
+	}
+	
+	
+	### Prior for modern data 
+	## Prior for regression coefficients
+  	beta~ dnorm(0, 0.0001)
+ 	beta_S~ dnorm(0, 0.0001) 
+	beta_I~ dnorm(0, 0.0001) 
+
+  	### Prior for random effects
+  	for( i in 1: N_S){
+  		eta[i]~ dnorm(0, inv.omega.lambda.squared)
+		
+  	}
+  	omega.lambda ~ dunif(0, 100)
+	inv.omega.lambda.squared <- 1/pow(omega.lambda, 2)
+	
+	#### derived quantities
+	f0<-0.5
+	
+	for(i in 1:K){  
+        fmean[i,1]<-(1 - theta[i,1])/(1+rbar[1])	
+        f_old[i,1] ~ dnorm(fmean[i,1],100) T(0, f0)
+        m_old[i,1] <-rbar[1]* f_old[i,1]
+        Brate[i,1] <- f0-f_old[i,1]
+        Arate[i,1] <- theta[i,1]-2* Brate[i,1]
+     
+        
+        for( j in 2: (N_old-1)){
+          fmean[i,j]<-(1-sum(theta[i,1:j]))/(1+rbar[j])
+          f_old[i,j]~ dnorm(fmean[i,j],100) T(0, f_old[i,j-1])
+          m_old[i,j]<-rbar[j]* f_old[i,j]
+       
+          Brate[i,j]<-f_old[i,j-1]-f_old[i,j]
+          Arate[i,j]<-theta[i,j]-2*Brate[i,j]
+        }
+      }
+	
+	##### hypotethical ancient herd
+	
+
+	
+	theta_pred ~ ddirch(gamma[1:N_old]) 
+    
+
+    fm[1]=(1 - theta_pred[1])/(1+rbar[1])	
+    f_pred[1] ~dnorm(fm[1],100) T(0, f0)
+    m_pred[1] <-rbar[1]* f_pred[1]
+    
+    for( j in 2: (N_old-1)){
+      fm[j]<-(1-sum(theta_pred[1:j]))/(1+rbar[j])
+      f_pred[j]~dnorm(fm[j],100) T(0, f_pred[j-1])
+      m_pred[j]<-rbar[j]* f_pred[j]
+    }
+      
+     
+	
+	
+	######## end
+}
