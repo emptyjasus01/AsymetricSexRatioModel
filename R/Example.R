@@ -1,3 +1,6 @@
+#### Set the working directory to the folder containing the files, 
+#### or adjust the file paths in the script to match their correct locations on your system.
+
 rm(list = ls())
 library(MCMCpack)
 library(readr)
@@ -5,7 +8,6 @@ library("readxl")
 library(MASS)
 library(R2jags)
 library(ggplot2)
-setwd("C:/WORK_TEMP/MarkThomas/Code/")
 
 ####Upload anicent data
 Counts<- as.matrix(read_csv("Example_Ancient_data.csv",col_names = FALSE))
@@ -273,11 +275,18 @@ yields = read.csv(file = 'TableLiveWeightMilkYield.txt', header = FALSE, sep = '
 ## ageFirstBirth_ = month of first birth
 
 
-compute_yields <- function(nAC, ls, AC_lengths, males, females,
+compute_yields <- function(nAC, ls, AC_lengths, m_output, f_output,
      yields_ = yields, birthRate_ = birthRate, ageFirstBirth_ = ageFirstBirth) {
-  # If males/females are vectors, convert to matrix with 1 row
-  if (is.vector(males)) males <- matrix(males, nrow = 1)
-  if (is.vector(females)) females <- matrix(females, nrow = 1)
+  # If m_output/f_output are vectors, convert to matrix with 1 row
+  if (is.vector(m_output)) males <- matrix(m_output, nrow = 1)
+  if (is.vector(f_output)) females <- matrix(f_output, nrow = 1)
+  
+  fs = cbind(0.5, f_output, 0)
+  ms = cbind(0.5, m_output, 0)
+  
+  females = sapply(2:ncol(fs), function(x) fs[, x-1] - fs[, x])
+  males = sapply(2:ncol(ms), function(x) ms[, x-1] - ms[, x])
+  
   n_sim <- nrow(males)
   total_months <- sum(AC_lengths)
   # Expand age class info to per-month (outside loop)
